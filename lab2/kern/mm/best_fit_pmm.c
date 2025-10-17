@@ -110,11 +110,13 @@ best_fit_alloc_pages(size_t n) {
     // 遍历空闲链表，查找满足需求的空闲页框
     // 如果找到满足需求的页面，记录该页面以及当前找到的最小连续空闲页框数量
 
+    
     while ((le = list_next(le)) != &free_list) {
         struct Page *p = le2page(le, page_link);
-        if (p->property >= n) {
+        //修改条件，记录最小连续空闲页框的数量
+        if (p->property >= n && p->property<min_size) {
             page = p;
-            break;
+            min_size = p->property;
         }
     }
 
@@ -146,6 +148,9 @@ best_fit_free_pages(struct Page *base, size_t n) {
     // 编写代码
     // 具体来说就是设置当前页块的属性为释放的页块数、并将当前页块标记为已分配状态、最后增加nr_free的值
 
+    base -> property = n;
+    SetPageProperty(base);
+    nr_free += n;
 
     if (list_empty(&free_list)) {
         list_add(&free_list, &(base->page_link));
@@ -173,6 +178,12 @@ best_fit_free_pages(struct Page *base, size_t n) {
         // 4、从链表中删除当前页块
         // 5、将指针指向前一个空闲页块，以便继续检查合并后的连续空闲页块
 
+        if (p+p->property == base){
+            p->property += base ->property;
+            ClearPageProperty(base);
+            list_del(&(base->page_link));
+            base = p;
+        }
     }
 
     le = list_next(&(base->page_link));
