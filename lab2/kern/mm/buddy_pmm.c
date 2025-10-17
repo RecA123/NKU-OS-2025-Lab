@@ -98,16 +98,37 @@ static void buddy_init_memmap(struct Page *base, size_t n) {
     }
 }
 
-
 static struct Page *buddy_alloc_pages(size_t n) {
-    
-    (void)n;
-    return NULL;
-}
+    if (n == 0) return NULL;
+    unsigned need = ceil_order(n);
+    if (need >= BUDDY_MAX_ORDER) return NULL;  
 
-static void buddy_free_pages(struct Page *base, size_t n) {
-    
-    (void)base; (void)n;
+    // 从 need 阶起，向上寻找首个非空阶
+    unsigned o = need;
+    while (o < BUDDY_MAX_ORDER && list_empty(&free_area[o])) o++;
+    if (o >= BUDDY_MAX_ORDER) return NULL;     
+
+    // 从阶 o 链表取出一个大块
+    list_entry_t *le = list_next(&free_area[o]);
+    struct Page *p = le2page(le, page_link);
+    size_t idx = page_idx(p);
+    del_block(o, p); // 先删除该大块
+
+    // 自顶向下拆分，右半块归还到低一阶空闲链表，左半块继续参与拆分
+    while (o > need) {
+        o--;
+        size_t right_idx = idx + (1UL << o);
+        struct Page *right = page_at(right_idx);
+        add_block(o, right);       // 右半块空闲
+        // 左半块（idx 不变）继续下一轮拆分
+    }
+
+    // 返回左半块：按 ucore 习惯，分配出去的块头不保留 PageProperty 标记
+    struct Page *ret = page_at(idx);
+    ClearPageProperty(ret);
+    ret->property = 0;
+    set_page_ref(ret, 0);
+    return ret;
 }
 
 static size_t buddy_nr_free_pages(void) {
