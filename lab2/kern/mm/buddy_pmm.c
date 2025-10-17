@@ -58,13 +58,46 @@ static inline void del_block(unsigned order, struct Page *p) {
 }
 
 static void buddy_init(void) {
-  
+    for (int i = 0; i < BUDDY_MAX_ORDER; i++) {
+        list_init(&free_area[i]);
+    }
+    free_nr_pages = 0;
+    buddy_base = NULL;
+    buddy_npages = 0;
+}
+
+// 选在 idx 处的“最大且对齐”的块阶数
+static unsigned pick_largest_order(size_t idx, size_t remain) {
+    unsigned o = 0;
+    while ((o + 1) < BUDDY_MAX_ORDER
+        && ((1UL << (o + 1)) <= remain)
+        && ((idx & ((1UL << (o + 1)) - 1)) == 0)) {
+        o++;
+    }
+    return o;
 }
 
 static void buddy_init_memmap(struct Page *base, size_t n) {
-    
-    (void)base; (void)n;
+    buddy_base   = base;
+    buddy_npages = n;
+
+    for (size_t i = 0; i < n; i++) {
+        struct Page *p = base + i;
+        p->property = 0;
+        ClearPageProperty(p);
+        set_page_ref(p, 0);
+    }
+
+    // 把 [0, n) 区间切成 2^k 对齐的最大块
+    size_t idx = 0;
+    while (idx < n) {
+        size_t remain = n - idx;
+        unsigned o = pick_largest_order(idx, remain);
+        add_block(o, page_at(idx));
+        idx += (1UL << o);
+    }
 }
+
 
 static struct Page *buddy_alloc_pages(size_t n) {
     
