@@ -4,10 +4,10 @@
 #include <pmm.h>
 
 /*
- * slub_pmm_manager – simplified SLUB style physical memory allocator.
+ * slub_pmm_manager 描述了一个简化版的 SLUB 风格物理内存分配器。
  *
- * The implementation lives in slub_pmm.c.  Expose the manager so that
- * kern/mm/pmm.c can pick it up in the same fashion as other managers.
+ * 具体实现位于 slub_pmm.c。将该管理器向外暴露，使得 kern/mm/pmm.c
+ * 可以像选择其他分配器那样，把它注册为当前的物理内存管理方案。
  */
 extern const struct pmm_manager slub_pmm_manager;
 

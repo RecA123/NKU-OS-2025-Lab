@@ -4,57 +4,55 @@
 #include <slub_pmm.h>
 
 /*
- * A teaching-oriented SLUB style physical page allocator.
+ * 面向教学的 SLUB 风格物理页分配器。
  *
- * The implementation mirrors the two-layer idea of Linux's SLUB:
- *   1. A "page allocator" (here we reuse a best-fit style free list) hands out
- *      contiguous slabs that consist of a fixed number of pages.
- *   2. Each slab is sub-divided into page-sized objects and cached on a
- *      partially-used list so that frequent single-page allocations can be
- *      satisfied without touching the global free list.
+ * 实现复刻了 Linux SLUB 的双层设计思想：
+ *   1. “页分配器”（此处复用最佳适配风格的空闲链表）负责按 slab 为单位
+ *      申请连续页块，每个 slab 由固定数量的页组成。
+ *   2. 每个 slab 再被切分为页大小的对象并缓存在“部分占用”链表上，
+ *      使得频繁的单页申请无需访问全局空闲链表。
  *
- * Compared with Linux, this version targets uCore's simple single-core setting.
- * Therefore we drop per-CPU structures and debugging features, but keep the
- * essential separation between slab provisioning and object allocation.
+ * 与 Linux 不同，本版本只面向 uCore 的单核教学环境，
+ * 因此省去了每 CPU 缓存以及调试设施，但保留了 slab 供给与对象分配的核心分离。
  */
 
 /* -------------------------------------------------------------------------- */
-/* Configuration                                                               */
+/* 配置参数                                                                    */
 /* -------------------------------------------------------------------------- */
 
-/* Number of pages in one slab (= 2^order, similar to SLUB's oo_order). */
+/* 每个 slab 中包含的页数（=2^order，对应 Linux SLUB 中的 oo_order）。 */
 #define SLUB_SLAB_ORDER      2U
 #define SLUB_SLAB_PAGES      (1U << SLUB_SLAB_ORDER)
 
-/* Object granularity inside a slab: here each object is exactly one page. */
+/* slab 内部对象的粒度：此版本中一个对象就是一页。 */
 #define SLUB_OBJECT_PAGES    1U
 #define SLUB_OBJECTS_PER_SLAB (SLUB_SLAB_PAGES / SLUB_OBJECT_PAGES)
 
-/* Global bounds derived from the maximum physical memory supported by uCore. */
+/* 基于 uCore 支持的最大物理内存推导出的全局上限。 */
 #define MAX_PHYS_PAGES       (KMEMSIZE / PGSIZE)
 #define MAX_SLABS            ((MAX_PHYS_PAGES + SLUB_SLAB_PAGES - 1) / SLUB_SLAB_PAGES)
 
-/* Per-page state values so we can identify whether a page is SLUB-managed. */
-#define SLUB_STATE_UNUSED    0   /* Page not tracked by SLUB (managed by backend). */
-#define SLUB_STATE_FREE      1   /* Page belongs to a slab and is currently free. */
-#define SLUB_STATE_ALLOCATED 2   /* Page belongs to a slab and is allocated. */
+/* 每个页的状态值，用于区分是否由 SLUB 管理。 */
+#define SLUB_STATE_UNUSED    0   /* 页未被 SLUB 跟踪（仍由后端管理）。 */
+#define SLUB_STATE_FREE      1   /* 页隶属于某个 slab，当前空闲。 */
+#define SLUB_STATE_ALLOCATED 2   /* 页隶属于某个 slab，当前已分配。 */
 
-/* Helper macro to translate a slab list entry back to its metadata record. */
+/* 帮助宏：从 slab 链表节点恢复出其元数据结构指针。 */
 #define le2slab(le) to_struct((le), struct slub_slab_meta, link)
 
 /* -------------------------------------------------------------------------- */
-/* Backend allocator (layer 1)                                                 */
+/* 后端页分配器（第一层）                                                      */
 /* -------------------------------------------------------------------------- */
 
 /*
- * The backend allocator is a lightly adapted copy of the best-fit allocator.
- * It is responsible for managing large contiguous chunks of free pages and
- * knows nothing about the slab layer.  The slab layer simply requests and
- * returns slabs through this interface.
+ * 后端页分配器是对最佳适配算法（best-fit）的轻量改写。
+ * 它只负责维护较大的连续空闲物理页块，对上层的 slab 管理一无所知；
+ * slab 层在需要时向它申请一整块 slab，用完后再完整归还。
+ * 通过这种分层设计，既保留了通用的页块回收机制，又能让 slab 层专注于小对象复用。
  */
 typedef struct {
-    list_entry_t free_list;    // sorted (by address) list of free blocks
-    size_t nr_free;            // total number of free pages managed here
+    list_entry_t free_list;    // 按物理地址排序的空闲块链表
+    size_t nr_free;            // 后端当前持有的空闲页总数
 } backend_area_t;
 
 static backend_area_t backend_area;
@@ -62,25 +60,25 @@ static backend_area_t backend_area;
 #define backend_free_list (backend_area.free_list)
 #define backend_nr_free   (backend_area.nr_free)
 
+/* 初始化后端页分配器的状态。 */
 static void
 backend_init(void) {
     list_init(&backend_free_list);
     backend_nr_free = 0;
 }
 
-/* Forward declaration so the slab layer can release completely free slabs. */
+/* 前向声明：使得 slab 层可以在 slab 完全空闲时归还给后端。 */
 static void backend_free_pages(struct Page *base, size_t n);
 
 /*
- * Insert a new free block [base, base + n) into the backend free list.
- * Pages arrive here during boot (via init_memmap) or when the slab layer
- * releases a fully unused slab.
+ * 将新的空闲块 [base, base + n) 插入后端链表。
+ * 这些页既可能来自启动阶段（init_memmap），也可能来自 slab 层归还的整块 slab。
  */
 static void
 backend_insert_block(struct Page *base, size_t n) {
     assert(n > 0);
 
-    // Normalise the page metadata before linking back to the free list.
+    // 恢复页元数据，确保重新挂回空闲链表时处于干净状态。
     struct Page *p = base;
     list_entry_t *le;
     list_entry_t *prev;
@@ -113,13 +111,13 @@ backend_insert_block(struct Page *base, size_t n) {
         }
     }
 
-    // No larger address found, append at the tail.
+    // 没有找到更高地址的插入点，则挂到链表尾部。
     list_add(list_prev(&backend_free_list), &(base->page_link));
 
 try_merge:
     /*
-     * Attempt to merge with the previous and next blocks if they sit next to
-     * the inserted range.  This keeps the backend allocator roughly coalesced.
+     * 如果插入范围与链表前后相邻，尝试做物理合并，
+     * 以保持后端空闲块尽量大，降低外部碎片。
      */
     prev = list_prev(&(base->page_link));
     if (prev != &backend_free_list) {
@@ -144,9 +142,9 @@ try_merge:
 }
 
 /*
- * Allocate >= n pages from the backend using the classic best-fit search.
- * This function mirrors best_fit_alloc_pages but is intentionally private so
- * the slab layer can request slabs without exposing another manager.
+ * 从后端分配不少于 n 页，算法沿用经典的最佳适配搜索。
+ * 实质上与 best_fit_alloc_pages 相同，但只在本模块内部使用，
+ * 方便 slab 层按需拉取 slab，而无需暴露额外的内存管理器接口。
  */
 static struct Page *
 backend_alloc_pages(size_t n) {
@@ -187,8 +185,8 @@ backend_alloc_pages(size_t n) {
 }
 
 /*
- * Free >= n pages back to the backend allocator.  The block must have been
- * allocated from backend_alloc_pages.
+ * 释放不少于 n 页回到后端；这些页必须来源于 backend_alloc_pages，
+ * 否则会破坏后端的块结构。
  */
 static void
 backend_free_pages(struct Page *base, size_t n) {
@@ -210,17 +208,17 @@ backend_nr_free_pages(void) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Slab metadata (layer 2)                                                     */
+/* Slab 元数据（第二层）                                                       */
 /* -------------------------------------------------------------------------- */
 
 struct slub_slab_meta {
-    struct Page *base;       // first page of the slab, NULL when unused
-    struct Page *freelist;   // first free object (page) inside the slab
-    unsigned int free_objects;   // number of free objects in this slab
-    unsigned int total_objects;  // cached copy of SLUB_OBJECTS_PER_SLAB
-    int on_partial;          // non-zero when linked on the partial list
-    int on_full;             // non-zero when linked on the full list
-    list_entry_t link;       // list hook for partial/full bookkeeping
+    struct Page *base;       // slab 的首页指针，未使用时为 NULL
+    struct Page *freelist;   // slab 内第一块空闲对象（页）
+    unsigned int free_objects;   // 当前 slab 中空闲对象数量
+    unsigned int total_objects;  // 记录该 slab 总对象数（等于 SLUB_OBJECTS_PER_SLAB）
+    int on_partial;          // 连接在部分占用链表时为非零
+    int on_full;             // 连接在满载链表时为非零
+    list_entry_t link;       // 用于挂接到 partial/full 链表的结点指针
 };
 
 static struct slub_slab_meta slab_table[MAX_SLABS];
@@ -228,14 +226,14 @@ static struct Page *slub_page_next[MAX_PHYS_PAGES];
 static uint8_t slub_page_state[MAX_PHYS_PAGES];
 
 static struct {
-    list_entry_t partial;    // slabs with at least one free object
-    list_entry_t full;       // slabs with no free objects (for illustration)
+    list_entry_t partial;    // 至少还有一个空闲对象的 slab
+    list_entry_t full;       // 已无空闲对象的 slab（保留用于说明状态）
     size_t free_objects_total;
 } slub_cache;
 
 static int slub_initialized;
 
-/* Convenience helpers to translate between Page* and index based storage. */
+/* 一组便捷函数，在 Page* 与索引化存储之间转换。 */
 static inline size_t
 page_index(struct Page *page) {
     return (size_t)(page - pages);
@@ -301,7 +299,11 @@ slub_cache_remove_from_full(struct slub_slab_meta *meta) {
     }
 }
 
-/* Prepare metadata and freelist for a brand-new slab returned by the backend. */
+/*
+ * 为后端新返回的 slab 填充元数据并初始化 freelist。
+ * 这里会把 slab 内的每一页串成单向链表，同时标记状态为 FREE，
+ * 以便上层可以快速地按页粒度分配。
+ */
 static void
 slub_prepare_slab(struct Page *base) {
     struct slub_slab_meta *meta = page_to_slab(base);
@@ -329,7 +331,10 @@ slub_prepare_slab(struct Page *base) {
     slub_cache_add_partial(meta);
 }
 
-/* Tear down a slab and hand the underlying pages back to the backend. */
+/*
+ * 当 slab 中所有对象都被归还时，将其彻底拆除并把物理页交还后端。
+ * 需要重置状态，防止旧的 next 指针泄露到下一次使用。
+ */
 static void
 slub_release_slab(struct slub_slab_meta *meta) {
     assert(meta->base != NULL);
@@ -355,7 +360,7 @@ slub_release_slab(struct slub_slab_meta *meta) {
     backend_free_pages(base, pages);
 }
 
-/* Pop one free page-sized object from a slab. */
+/* 从 slab 中取出一个空闲页对象，用于满足上层的单页分配。 */
 static struct Page *
 slub_pop_object(struct slub_slab_meta *meta) {
     assert(meta->freelist != NULL);
@@ -376,7 +381,7 @@ slub_pop_object(struct slub_slab_meta *meta) {
     return page;
 }
 
-/* Push a page-sized object back into its slab's freelist. */
+/* 将归还的页对象重新压回所在 slab 的 freelist，并根据状态更新链表。 */
 static void
 slub_push_object(struct slub_slab_meta *meta, struct Page *page) {
     slub_object_set_next(page, meta->freelist);
@@ -396,14 +401,14 @@ slub_push_object(struct slub_slab_meta *meta, struct Page *page) {
     }
 }
 
-/* Query function used by the PMM interface. */
+/* 提供给 PMM 接口的查询函数，返回 slab 层尚未用掉的页数量。 */
 static size_t
 slub_nr_free_objects(void) {
     return slub_cache.free_objects_total;
 }
 
 /* -------------------------------------------------------------------------- */
-/* PMM manager front-end                                                       */
+/* PMM 管理器前端接口                                                           */
 /* -------------------------------------------------------------------------- */
 
 static void
@@ -423,9 +428,8 @@ slub_init(void) {
 }
 
 /*
- * init_memmap is called once per free memory range discovered during boot.
- * We simply pass the pages to the backend allocator.  Slabs are carved out
- * lazily when the first SLUB allocation happens.
+ * init_memmap 会在启动阶段，对每一段探测到的空闲物理内存调用一次。
+ * 此时我们直接把页面交给后端分配器；真正的 slab 会在首次分配时按需切割。
  */
 static void
 slub_init_memmap(struct Page *base, size_t n) {
@@ -433,6 +437,11 @@ slub_init_memmap(struct Page *base, size_t n) {
     backend_insert_block(base, n);
 }
 
+/*
+ * 单页分配逻辑：
+ *   1. 优先从 partial 链表中取 slab；若链表为空则向后端申请新 slab。
+ *   2. 调用 slub_pop_object 弹出一个页对象。
+ */
 static struct Page *
 slub_alloc_small(void) {
     if (list_empty(&slub_cache.partial)) {
@@ -447,6 +456,7 @@ slub_alloc_small(void) {
     return slub_pop_object(meta);
 }
 
+/* 多页或跨 slab 的需求直接透传给后端，以复用 best-fit 能力。 */
 static struct Page *
 slub_alloc_large(size_t n) {
     struct Page *page = backend_alloc_pages(n);
@@ -462,6 +472,7 @@ slub_alloc_pages(size_t n) {
     return slub_alloc_large(n);
 }
 
+/* 将单页释放回 slab，自然复用 partial/full 链表的维护逻辑。 */
 static void
 slub_free_small(struct Page *page) {
     struct slub_slab_meta *meta = page_to_slab(page);
@@ -469,11 +480,17 @@ slub_free_small(struct Page *page) {
     slub_push_object(meta, page);
 }
 
+/* 多页释放相对稀疏，直接交还给后端集中维护。 */
 static void
 slub_free_large(struct Page *base, size_t n) {
     backend_free_pages(base, n);
 }
 
+/*
+ * 按请求的规模决定释放路径：
+ *   - 单页且已被 SLUB 接管：走 slab 回收；
+ *   - 其他情况：走后端回收。
+ */
 static void
 slub_free_pages(struct Page *base, size_t n) {
     assert(n > 0);
@@ -490,14 +507,14 @@ slub_nr_free_pages_wrapper(void) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Tests                                                                       */
+/* 自测函数                                                                    */
 /* -------------------------------------------------------------------------- */
 
 static void
 slub_basic_check(void) {
     struct Page *pages_buf[SLUB_OBJECTS_PER_SLAB];
 
-    // Allocate a full slab worth of pages and make sure they are distinct.
+    // 申请一个 slab 的全部页，确保返回的页互不相同。
     for (unsigned int i = 0; i < SLUB_OBJECTS_PER_SLAB; ++i) {
         struct Page *p = slub_alloc_pages(1);
         assert(p != NULL);
@@ -505,29 +522,29 @@ slub_basic_check(void) {
         assert(slub_object_state(p) == SLUB_STATE_ALLOCATED);
     }
 
-    // The next allocation should come from a different slab.
+    // 下一次分配应该命中新 slab。
     struct Page *p_extra = slub_alloc_pages(1);
     assert(p_extra != NULL);
     struct slub_slab_meta *meta0 = page_to_slab(pages_buf[0]);
     struct slub_slab_meta *meta_extra = page_to_slab(p_extra);
     assert(meta0 != meta_extra);
 
-    // Free the first slab worth of pages and ensure they merge back.
+    // 释放第一个 slab 的所有页，检查是否重新合并。
     for (unsigned int i = 0; i < SLUB_OBJECTS_PER_SLAB; ++i) {
         slub_free_pages(pages_buf[i], 1);
         assert(slub_object_state(pages_buf[i]) != SLUB_STATE_ALLOCATED);
     }
 
-    // After releasing all objects, the slab should have been returned to backend.
+    // 全部对象释放后，该 slab 应当被归还给后端。
     assert(meta0->base == NULL);
 
-    // Cleanup the extra allocation.
+    // 释放额外申请的那一页。
     slub_free_pages(p_extra, 1);
 }
 
 static void
 slub_mixed_size_check(void) {
-    // Allocate a large block directly from the backend and ensure accounting.
+    // 先直接向后端申请大块，确保计数不会错乱。
     const size_t large_n = SLUB_SLAB_PAGES * 2;
     struct Page *block = slub_alloc_pages(large_n);
     assert(block != NULL);
@@ -580,7 +597,7 @@ slub_check(void) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Manager descriptor                                                           */
+/* 管理器描述表                                                                */
 /* -------------------------------------------------------------------------- */
 
 const struct pmm_manager slub_pmm_manager = {
