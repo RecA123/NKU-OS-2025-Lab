@@ -254,7 +254,6 @@ static void buddy_check(void) {
     cprintf("\n[buddy] 结论: 正确，与预期相同\n");
 }
 
-/* ---------------- 导出管理器 ---------------- */
 const struct pmm_manager buddy_pmm_manager = {
     .name = "buddy_pmm_manager-2312632",
     .init = buddy_init,
