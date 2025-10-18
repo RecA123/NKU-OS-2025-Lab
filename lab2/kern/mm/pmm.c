@@ -6,6 +6,7 @@
 #include <memlayout.h>
 #include <mmu.h>
 #include <pmm.h>
+#include <buddy_pmm.h>
 #include <sbi.h>
 #include <stdio.h>
 #include <string.h>
@@ -30,12 +31,12 @@ uintptr_t satp_physical;
 // physical memory management
 const struct pmm_manager *pmm_manager;
 
-
 static void check_alloc_page(void);
 
 // init_pmm_manager - initialize a pmm_manager instance
 static void init_pmm_manager(void) {
-    pmm_manager = &slub_pmm_manager;
+    // 使用伙伴分配器
+    pmm_manager = &buddy_pmm_manager;
     cprintf("memory management: %s\n", pmm_manager->name);
     pmm_manager->init();
 }
@@ -45,8 +46,7 @@ static void init_memmap(struct Page *base, size_t n) {
     pmm_manager->init_memmap(base, n);
 }
 
-// alloc_pages - call pmm->alloc_pages to allocate a continuous n*PAGESIZE
-// memory
+// alloc_pages - call pmm->alloc_pages to allocate a continuous n*PAGESIZE memory
 struct Page *alloc_pages(size_t n) {
     return pmm_manager->alloc_pages(n);
 }
@@ -56,8 +56,7 @@ void free_pages(struct Page *base, size_t n) {
     pmm_manager->free_pages(base, n);
 }
 
-// nr_free_pages - call pmm->nr_free_pages to get the size (nr*PAGESIZE)
-// of current free memory
+// nr_free_pages - call pmm->nr_free_pages to get the size (nr*PAGESIZE) of current free memory
 size_t nr_free_pages(void) {
     return pmm_manager->nr_free_pages();
 }
@@ -73,11 +72,9 @@ static void page_init(void) {
     uint64_t mem_end   = mem_begin + mem_size;
 
     cprintf("physcial memory map:\n");
-    cprintf("  memory: 0x%016lx, [0x%016lx, 0x%016lx].\n", mem_size, mem_begin,
-            mem_end - 1);
+    cprintf("  memory: 0x%016lx, [0x%016lx, 0x%016lx].\n", mem_size, mem_begin, mem_end - 1);
 
     uint64_t maxpa = mem_end;
-
     if (maxpa > KERNTOP) {
         maxpa = KERNTOP;
     }
@@ -85,7 +82,7 @@ static void page_init(void) {
     extern char end[];
 
     npage = maxpa / PGSIZE;
-    //kernel在end[]结束, pages是剩下的页的开始
+    // kernel 在 end[] 结束, pages 是剩下的页的开始
     pages = (struct Page *)ROUNDUP((void *)end, PGSIZE);
 
     for (size_t i = 0; i < npage - nbase; i++) {
@@ -103,24 +100,20 @@ static void page_init(void) {
 
 /* pmm_init - initialize the physical memory management */
 void pmm_init(void) {
-    // We need to alloc/free the physical memory (granularity is 4KB or other size).
-    // So a framework of physical memory manager (struct pmm_manager)is defined in pmm.h
-    // First we should init a physical memory manager(pmm) based on the framework.
-    // Then pmm can alloc/free the physical memory.
-    // Now the first_fit/best_fit/worst_fit/buddy_system pmm are available.
+    // 1) 初始化内存分配器（此处为 buddy）
     init_pmm_manager();
 
-    // detect physical memory space, reserve already used memory,
-    // then use pmm->init_memmap to create free page list
+    // 2) 探测物理内存、保留已用区域，并建立空闲页映射
     page_init();
 
-    // use pmm->check to verify the correctness of the alloc/free function in a pmm
+    // 3) 运行分配/释放自检
     check_alloc_page();
 
     extern char boot_page_table_sv39[];
     satp_virtual = (pte_t*)boot_page_table_sv39;
     satp_physical = PADDR(satp_virtual);
-    cprintf("satp virtual address: 0x%016lx\nsatp physical address: 0x%016lx\n", satp_virtual, satp_physical);
+    cprintf("satp virtual address: 0x%016lx\nsatp physical address: 0x%016lx\n",
+            satp_virtual, satp_physical);
 }
 
 static void check_alloc_page(void) {
