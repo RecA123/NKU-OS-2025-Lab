@@ -36,7 +36,7 @@ static void check_alloc_page(void);
 // init_pmm_manager - initialize a pmm_manager instance
 static void init_pmm_manager(void) {
     // 使用伙伴分配器
-    pmm_manager = &buddy_pmm_manager;
+    pmm_manager = &slub_pmm_manager;
     cprintf("memory management: %s\n", pmm_manager->name);
     pmm_manager->init();
 }
