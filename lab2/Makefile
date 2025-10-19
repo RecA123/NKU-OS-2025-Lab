@@ -9,8 +9,9 @@ V       := @
 GCCPREFIX := riscv64-unknown-elf-
 #endif
 
-# 固定使用本地编译的 QEMU 4.1.1
-QEMU := $(HOME)/work/qemu-4.1.1/build/riscv64-softmmu/qemu-system-riscv64
+ifndef QEMU
+QEMU := qemu-system-riscv64
+endif
 
 ifndef SPIKE
 SPIKE := spike
@@ -132,6 +133,7 @@ $(call create_target,kernel)
 # create ucore.img
 UCOREIMG	:= $(call totarget,ucore.img)
 
+
 $(UCOREIMG): $(kernel)
 	$(OBJCOPY) $(kernel) --strip-all -O binary $@
 
@@ -162,17 +164,15 @@ qemu: $(UCOREIMG) $(SWAPIMG) $(SFSIMG)
 	$(V)$(QEMU) \
 		-machine virt \
 		-nographic \
-		-m 256M \
 		-bios default \
-		-kernel $(UCOREIMG)
+		-device loader,file=$(UCOREIMG),addr=0x80200000
 
 debug: $(UCOREIMG) $(SWAPIMG) $(SFSIMG)
 	$(V)$(QEMU) \
 		-machine virt \
 		-nographic \
-		-m 256M \
 		-bios default \
-		-kernel $(UCOREIMG) \
+		-device loader,file=$(UCOREIMG),addr=0x80200000\
 		-s -S
 
 gdb:
@@ -185,10 +185,8 @@ test: $(UCOREIMG) $(SWAPIMG) $(SFSIMG)
 	$(V)$(QEMU) \
 		-machine virt \
 		-nographic \
-		-m 256M \
 		-bios default \
-		-kernel $(UCOREIMG)
-
+		-device loader,file=$(UCOREIMG),addr=0x80200000
 spike: $(UCOREIMG) $(SWAPIMG) $(SFSIMG)
 	$(V)$(SPIKE) $(UCOREIMG)
 
