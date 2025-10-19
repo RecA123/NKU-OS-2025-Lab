@@ -32,7 +32,7 @@
         }                                                                  \
     } while (0)
 
-#define SLUB_SLAB_MAGIC 0xFFFFFFFFU /* slab 首页魔数，用于校验指针合法性   */
+#define SLUB_SLAB_MAGIC 0xFFFFFFFFU /* slab 首页magic，用于校验指针合法   */
 #define SLUB_FREELIST_END 0xFFFFu   /* 空闲对象链表终止标记                */
 #define SLUB_MIN_ALIGN 8            /* 默认对齐要求，兼顾大多数内核对象     */
 #define SLUB_DEFAULT_CLASS_COUNT 12 /* 默认 size class 数目                */
@@ -46,7 +46,7 @@ struct slub_cache;
 
 /* slab 首页的元数据。结构体紧跟在页面起始位置，用于管理本页内对象。 */
 struct slub_slab {
-    uint32_t magic;              // 魔数，用于基本合法性检查
+    uint32_t magic;              // 用于基本合法性检查
     struct slub_cache *cache;    // 指向所属的对象缓存
     struct Page *page;           // 物理页描述符，便于回收
     uint16_t free_count;         // 当前剩余空闲对象数
@@ -58,7 +58,7 @@ struct slub_slab {
 
 /* 对象缓存，维护同类尺寸对象的 slab 列表与统计信息。 */
 struct slub_cache {
-    const char *name;            // 缓存名称（调试使用）
+    const char *name;            // 缓存名称
     size_t obj_size;             // 用户请求的对象大小
     size_t obj_stride;           // 实际分配的步长（包含对齐和 freelist 空间）
     size_t align;                // 对齐要求
