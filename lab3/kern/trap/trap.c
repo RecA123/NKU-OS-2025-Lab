@@ -8,8 +8,11 @@
 #include <riscv.h>
 #include <stdio.h>
 #include <trap.h>
+#include <sbi.h>
 
 #define TICK_NUM 100
+
+volatile size_t num = 0;
 
 static void print_ticks() {
     cprintf("%d ticks\n", TICK_NUM);
@@ -22,7 +25,7 @@ static void print_ticks() {
 /* idt_init - initialize IDT to each of the entry points in kern/trap/vectors.S
  */
 void idt_init(void) {
-    /* LAB3 YOUR CODE : STEP 2 */
+    /* LAB3 YOUR CODE : 2313825 STEP 2 */
     /* (1) Where are the entry addrs of each Interrupt Service Routine (ISR)?
      *     All ISR's entry addrs are stored in __vectors. where is uintptr_t
      * __vectors[] ?
@@ -130,6 +133,18 @@ void interrupt_handler(struct trapframe *tf) {
              *(3)当计数器加到100的时候，我们会输出一个`100ticks`表示我们触发了100次时钟中断，同时打印次数（num）加一
             * (4)判断打印次数，当打印次数为10时，调用<sbi.h>中的关机函数关机
             */
+            clock_set_next_event();
+            ticks++;
+            if(ticks%TICK_NUM == 0){
+                cprintf("100ticks\n");
+                num++;
+
+                if(num == 10){
+                    cprintf("shutting down...\n");
+                    sbi_shutdown();
+                }
+            }
+
             break;
         case IRQ_H_TIMER:
             cprintf("Hypervisor software interrupt\n");
