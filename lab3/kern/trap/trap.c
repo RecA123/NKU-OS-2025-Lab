@@ -190,11 +190,14 @@ void exception_handler(struct trapframe *tf) {
             break;
         case CAUSE_BREAKPOINT:
             //断点异常处理
-            /* LAB3 CHALLLENGE3   YOUR CODE :  */
+            /* LAB3 CHALLLENGE3   YOUR CODE : 2312632 */
             /*(1)输出指令异常类型（ breakpoint）
              *(2)输出异常指令地址
              *(3)更新 tf->epc寄存器
             */
+            cprintf("ebreak caught at 0x%08x\n", tf->epc);
+            cprintf("Exception type: breakpoint\n");
+            tf->epc += 2;
             break;
         case CAUSE_MISALIGNED_LOAD:
             break;

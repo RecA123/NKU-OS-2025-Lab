@@ -35,8 +35,8 @@ int kern_init(void) {
     cprintf("非法指令异常测试...\n");
     __asm__ volatile(".word 0x00000000"); 
 
-    // cprintf("断点异常测试...\n");
-    // __asm__ volatile("ebreak"); 
+    cprintf("断点异常测试...\n");
+    __asm__ volatile("ebreak"); 
 
     clock_init();   // init clock interrupt
     intr_enable();  // enable irq interrupt
