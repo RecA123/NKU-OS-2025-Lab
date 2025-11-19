@@ -104,7 +104,19 @@ alloc_proc(void)
          *       uint32_t flags;                             // Process flag
          *       char name[PROC_NAME_LEN + 1];               // Process name
          */
-        
+        proc->state = PROC_UNINIT;  //初始化进程状态为未初始化
+        proc->pid = -1;             //初始化进程id为-1表示尚未分配有效id
+        proc->runs = 0;             //运行次数为0
+        proc->kstack = 0;           //内核栈指针初始化为0
+        proc->need_resched = 0;     //不需要重新调度
+        proc->parent = NULL;        //父进程指针为空
+        proc->mm = NULL;            //内存管理结果为空
+        memset(&(proc->context), 0, sizeof(struct context));    //上下文结构清零
+        proc->tf = NULL;            //陷阱帧指针为空
+        proc->pgdir = NULL;         //页目录基址为0
+        proc->flags = 0;            //进程标志为0
+        memset(proc->name, 0, PROC_NAME_LEN+1);     //进程名初始化为空串
+
     }
     return proc;
 }
