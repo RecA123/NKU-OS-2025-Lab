@@ -113,7 +113,7 @@ alloc_proc(void)
         proc->mm = NULL;            //内存管理结果为空
         memset(&(proc->context), 0, sizeof(struct context));    //上下文结构清零
         proc->tf = NULL;            //陷阱帧指针为空
-        proc->pgdir = 0;         //页目录基址为0
+        proc->pgdir = boot_pgdir_pa;         //页目录基址
         proc->flags = 0;            //进程标志为0
         memset(proc->name, 0, PROC_NAME_LEN+1);     //进程名初始化为空串
 
