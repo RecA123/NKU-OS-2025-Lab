@@ -9,8 +9,11 @@
 #include <stdio.h>
 #include <trap.h>
 #include <vmm.h>
+#include <sbi.h>
 
 #define TICK_NUM 100
+
+volatile size_t num = 0;
 
 static void print_ticks()
 {
