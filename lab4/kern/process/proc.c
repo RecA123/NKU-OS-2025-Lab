@@ -109,6 +109,15 @@ alloc_proc(void)
     return proc;
 }
 
+// wakeup_proc - 唤醒进程，将其状态置为 RUNNABLE
+void wakeup_proc(struct proc_struct *proc)
+{
+    if (proc->state == PROC_UNINIT || proc->state == PROC_SLEEPING)
+    {
+        proc->state = PROC_RUNNABLE;
+    }
+}
+
 // set_proc_name - set the name of proc
 char *
 set_proc_name(struct proc_struct *proc, const char *name)
