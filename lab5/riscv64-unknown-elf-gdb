@@ -1,0 +1,10 @@
+#!/bin/bash
+script=$(mktemp)
+cleanup() { rm -f "$script"; }
+trap cleanup EXIT
+cat >"$script" <<'GDBCMDS'
+set arch riscv:rv64
+file bin/kernel
+GDBCMDS
+cat .gdb.in >> "$script"
+exec gdb-multiarch -batch -nx -x "$script"
