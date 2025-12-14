@@ -31,6 +31,8 @@ void yield(void);
 int kill(int pid);
 int getpid(void);
 void print_pgdir(void);
+int mempoke(void *dst, const void *src, size_t len); // Dirty COW: 模拟 /proc/self/mem 写
+int dirtycowctl(int mode);                           // Dirty COW: mode=-1 查询，0/1 切换 fix/bug
 
 #endif /* !__USER_LIBS_ULIB_H__ */
 
