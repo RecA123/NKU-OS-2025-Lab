@@ -12,7 +12,7 @@ endif
 
 # try to infer the correct QEMU
 ifndef QEMU
-QEMU := qemu-system-riscv64
+QEMU := $(HOME)/work/qemu-4.1.1/build/riscv64-softmmu/qemu-system-riscv64
 endif
 
 ifndef SPIKE
@@ -243,10 +243,29 @@ RUN_PREFIX	:= _binary_$(OBJDIR)_$(USER_PREFIX)
 MAKEOPTS	:= --quiet --no-print-directory
 
 run-%: build-%
-	$(V)$(SPIKE) $(UCOREIMG)
+	$(V)timeout 10 $(QEMU) \
+		-machine virt \
+		-nographic \
+		-bios default \
+		-device loader,file=$(UCOREIMG),addr=0x80200000
 
 run-nox-%: build-%
-	$(V)$(QEMU) -serial mon:stdio $(QEMUOPTS) -nographic
+	$(V)rm -f .run_$*.log ; touch .run_$*.log ; \
+	$(QEMU) \
+		-machine virt \
+		-nographic \
+		-bios default \
+		-serial file:.run_$*.log \
+		-monitor null \
+		-device loader,file=$(UCOREIMG),addr=0x80200000 & \
+	QPID=$$! ; \
+	for i in $$(seq 1 80); do \
+		grep -q \"pass\" .run_$*.log 2>/dev/null && break; \
+		sleep 0.15; \
+	done ; \
+	kill $$QPID >/dev/null 2>&1 || true ; \
+	sleep 0.2 ; \
+	sed -n '1,/pass\\./p' .run_$*.log | grep -v '^K>\\{0,1\\}[ >]*$$'
 
 build-%: touch
 	$(V)$(MAKE) $(MAKEOPTS) "DEFS+=-DTEST=$* -DTESTSTART=$(RUN_PREFIX)$*_out_start -DTESTSIZE=$(RUN_PREFIX)$*_out_size"
