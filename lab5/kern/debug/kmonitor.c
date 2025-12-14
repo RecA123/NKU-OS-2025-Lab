@@ -4,6 +4,7 @@
 #include <trap.h>
 #include <kmonitor.h>
 #include <kdebug.h>
+#include <cow.h>
 
 /* *
  * Simple command-line kernel monitor useful for controlling the
@@ -18,10 +19,13 @@ struct command
     int (*func)(int argc, char **argv, struct trapframe *tf);
 };
 
+static int mon_dirtycow(int argc, char **argv, struct trapframe *tf);
+
 static struct command commands[] = {
     {"help", "Display this list of commands.", mon_help},
     {"kerninfo", "Display information about the kernel.", mon_kerninfo},
     {"backtrace", "Print backtrace of stack frame.", mon_backtrace},
+    {"dirtycow", "Show/toggle Dirty COW demo state.", mon_dirtycow},
 };
 
 /* return if kernel is panic, in kern/debug/panic.c */
@@ -143,5 +147,71 @@ int mon_kerninfo(int argc, char **argv, struct trapframe *tf)
 int mon_backtrace(int argc, char **argv, struct trapframe *tf)
 {
     print_stackframe();
+    return 0;
+}
+
+static int
+mon_dirtycow(int argc, char **argv, struct trapframe *tf)
+{
+    if (argc == 0)
+    {
+        cprintf("Dirty COW demo mode: %s\n", dirtycow_mode_string());
+        cprintf(" unsafe writes=%llu repaired writes=%llu\n",
+                dirtycow_stats.unsafe_writes, dirtycow_stats.repaired_writes);
+        cprintf(" usage: dirtycow [bug|fix]\n");
+        return 0;
+    }
+
+    if (strcmp(argv[0], "bug") == 0)
+    {
+        dirtycow_set_mode(1);
+        cprintf("Dirty COW bug emulation enabled.\n");
+    }
+    else if (strcmp(argv[0], "fix") == 0)
+    {
+        dirtycow_set_mode(0);
+        cprintf("Dirty COW fix mode enabled.\n");
+    }
+    else
+    {
+        cprintf("usage: dirtycow [bug|fix]\n");
+    }
+    cprintf(" mode now: %s\n", dirtycow_mode_string());
+    return 0;
+}
+
+// dirtycow 命令实现：
+//   无参数：打印当前模式 + 统计
+//   bug/fix ：切换到漏洞/修复模式
+// dirtycow 命令实现：
+//   无参数：打印当前状态 + 计数器，并提示用法
+//   参数 bug/fix：切换到漏洞/修复模式
+static int
+mon_dirtycow(int argc, char **argv, struct trapframe *tf)
+{
+    if (argc == 0)
+    {
+        cprintf("Dirty COW demo mode: %s\n", dirtycow_mode_string());
+        cprintf(" unsafe writes=%llu repaired writes=%llu\n",
+                dirtycow_stats.unsafe_writes, dirtycow_stats.repaired_writes);
+        cprintf(" usage: dirtycow [bug|fix]\n");
+        return 0;
+    }
+
+    if (strcmp(argv[0], "bug") == 0)
+    {
+        dirtycow_set_mode(1);
+        cprintf("Dirty COW bug emulation enabled.\n");
+    }
+    else if (strcmp(argv[0], "fix") == 0)
+    {
+        dirtycow_set_mode(0);
+        cprintf("Dirty COW fix mode enabled.\n");
+    }
+    else
+    {
+        cprintf("usage: dirtycow [bug|fix]\n");
+    }
+    cprintf(" mode now: %s\n", dirtycow_mode_string());
     return 0;
 }
