@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <pmm.h>
 #include <assert.h>
+#include <error.h>
+#include <cow.h>
 
 static int
 sys_exit(uint64_t arg[]) {
@@ -64,6 +66,44 @@ sys_pgdir(uint64_t arg[]) {
     return 0;
 }
 
+// sys_mempoke - Dirty COW 演示用的“内核代写”系统调用
+//   arg[0] = dst 目标用户虚拟地址；arg[1] = src 用户缓冲区；arg[2] = len
+//   这里直接把三个参数转换，再交给 dirtycow_mempoke 处理，
+//   它会根据当前“bug / fix”模式决定是否触发真正的 COW 拆分
+static int
+sys_mempoke(uint64_t arg[]) {
+    uintptr_t dst = (uintptr_t)arg[0];
+    const void *src = (const void *)arg[1];
+    size_t len = (size_t)arg[2];
+    return dirtycow_mempoke(current->mm, dst, src, len);
+}
+
+// sys_dirtycowctl - Dirty COW 演示模式控制
+//   mode = -1: 查询当前模式，0 表示修复，1 表示漏洞复现
+//   mode = 0/1: 切换到 fix/bug 模式
+//   其它数值返回 -E_INVAL
+static int
+sys_dirtycowctl(uint64_t arg[]) {
+    int mode = (int)arg[0];
+    if (mode == -1)
+    {
+        return dirtycow_stats.emulate_bug;
+    }
+    if (mode == 0)
+    {
+        dirtycow_set_mode(0);
+    }
+    else if (mode == 1)
+    {
+        dirtycow_set_mode(1);
+    }
+    else
+    {
+        return -E_INVAL;
+    }
+    return dirtycow_stats.emulate_bug;
+}
+
 static int (*syscalls[])(uint64_t arg[]) = {
     [SYS_exit]              sys_exit,
     [SYS_fork]              sys_fork,
@@ -74,6 +114,8 @@ static int (*syscalls[])(uint64_t arg[]) = {
     [SYS_getpid]            sys_getpid,
     [SYS_putc]              sys_putc,
     [SYS_pgdir]             sys_pgdir,
+    [SYS_mempoke]           sys_mempoke,
+    [SYS_dirtycowctl]       sys_dirtycowctl,
 };
 
 #define NUM_SYSCALLS        ((sizeof(syscalls)) / (sizeof(syscalls[0])))

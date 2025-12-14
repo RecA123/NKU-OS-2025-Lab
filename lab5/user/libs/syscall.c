@@ -2,8 +2,6 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <syscall.h>
-#include <error.h>
-#include <cow.h>
 
 #define MAX_ARGS            5
 
