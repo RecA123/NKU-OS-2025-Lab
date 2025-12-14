@@ -396,25 +396,40 @@ int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end,
             {
                 return -E_NO_MEM;
             }
-            uint32_t perm = (*ptep & PTE_USER);
-            // get page from ptep
-            struct Page *page = pte2page(*ptep);
-            // alloc a page for process B
-            struct Page *npage = alloc_page();
-            assert(page != NULL);
-            assert(npage != NULL);
-            int ret = 0;
-            void *src_kvaddr = page2kva(page);
-            void *dst_kvaddr = page2kva(npage);
-            memcpy(dst_kvaddr, src_kvaddr, PGSIZE);
-            ret = page_insert(to, npage, start, perm);
-            if (ret != 0)
-            {
-                free_page(npage);
-                return ret;
-            }
 
-            assert(ret == 0);
+            uint32_t perm = (*ptep & PTE_USER);
+            struct Page *page = pte2page(*ptep);
+
+            if (share)
+            {
+                /* COW: both parent & child去掉写权限，设置软件PTE_COW 位并共享物理页 */
+                perm = (perm | PTE_COW) & ~PTE_W;
+                *ptep = (*ptep | PTE_COW) & ~PTE_W;
+                tlb_invalidate(from, start);
+                if (page_insert(to, page, start, perm) != 0)
+                {
+                    return -E_NO_MEM;
+                }
+            }
+            else
+            {
+                // alloc a page for process B
+                struct Page *npage = alloc_page();
+                assert(page != NULL);
+                assert(npage != NULL);
+                int ret = 0;
+                void *src_kvaddr = page2kva(page);
+                void *dst_kvaddr = page2kva(npage);
+                memcpy(dst_kvaddr, src_kvaddr, PGSIZE);
+                ret = page_insert(to, npage, start, perm);
+                if (ret != 0)
+                {
+                    free_page(npage);
+                    return ret;
+                }
+
+                assert(ret == 0);
+            }
         }
         start += PGSIZE;
     } while (start != 0 && start < end);

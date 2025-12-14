@@ -120,6 +120,10 @@
 #define MIP_HEIP (1 << IRQ_H_EXT)
 #define MIP_MEIP (1 << IRQ_M_EXT)
 
+#define SIE_SSIE (1 << IRQ_S_SOFT)
+#define SIE_STIE (1 << IRQ_S_TIMER)
+#define SIE_SEIE (1 << IRQ_S_EXT)
+
 #define SIP_SSIP MIP_SSIP
 #define SIP_STIP MIP_STIP
 

@@ -237,6 +237,15 @@ void exception_handler(struct trapframe *tf)
         {
             cprintf("Load page fault\n");
         }
+        if (!in_kernel && current != NULL)
+        {
+            ret = do_pgfault(current->mm, 0, tf->tval);
+            if (ret != 0)
+            {
+                cprintf("pgfault failed: %e\n", ret);
+                panic("Unhandled load pgfault");
+            }
+        }
         break;
     case CAUSE_STORE_PAGE_FAULT:
         if (pgfault_report_left-- > 0)
@@ -246,6 +255,15 @@ void exception_handler(struct trapframe *tf)
         else
         {
             cprintf("Store/AMO page fault\n");
+        }
+        if (!in_kernel && current != NULL)
+        {
+            ret = do_pgfault(current->mm, PTE_W, tf->tval);
+            if (ret != 0)
+            {
+                cprintf("pgfault failed: %e\n", ret);
+                panic("Unhandled store pgfault");
+            }
         }
         break;
     default:
