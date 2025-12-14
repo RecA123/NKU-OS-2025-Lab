@@ -2,6 +2,8 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <syscall.h>
+#include <error.h>
+#include <cow.h>
 
 #define MAX_ARGS            5
 
@@ -70,4 +72,16 @@ int
 sys_pgdir(void) {
     return syscall(SYS_pgdir);
 }
+// sys_mempoke - 用户态封装：调用 Dirty COW 的“内核代写”系统调用
+//   参数语义与内核一致，这里只是把指针转换成 uintptr_t 后直接发起 syscall
+int
+sys_mempoke(uintptr_t dst, uintptr_t src, size_t len) {
+    return syscall(SYS_mempoke, dst, src, len);
+}
 
+// sys_dirtycowctl - 用户态封装：切换/查询 Dirty COW 演示模式
+//   mode = -1/0/1 的含义同内核，返回值也是当前模式值
+int
+sys_dirtycowctl(int mode) {
+    return syscall(SYS_dirtycowctl, mode);
+}
