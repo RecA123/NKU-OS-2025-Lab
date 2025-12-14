@@ -37,6 +37,82 @@
 static void check_vmm(void);
 static void check_vma_struct(void);
 
+/* translate vma flags to PTE permission bits */
+static inline uint32_t
+vma_perm(uint32_t vm_flags)
+{
+    uint32_t perm = PTE_U | PTE_V;
+    if (vm_flags & VM_READ)
+    {
+        perm |= PTE_R;
+    }
+    if (vm_flags & VM_WRITE)
+    {
+        perm |= (PTE_W | PTE_R);
+    }
+    if (vm_flags & VM_EXEC)
+    {
+        perm |= PTE_X;
+    }
+    return perm;
+}
+
+int do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr)
+{
+    uintptr_t la = ROUNDDOWN(addr, PGSIZE);
+    struct vma_struct *vma = find_vma(mm, la);
+    if (vma == NULL || vma->vm_start > la)
+    {
+        return -E_INVAL;
+    }
+
+    uint32_t perm = vma_perm(vma->vm_flags);
+    pte_t *ptep = get_pte(mm->pgdir, la, 1);
+    if (ptep == NULL)
+    {
+        return -E_NO_MEM;
+    }
+
+    bool need_write = (error_code & PTE_W) != 0;
+    if (*ptep & PTE_V)
+    {
+        // 已有映射，只可能是写时复制触发
+        if ((*ptep & PTE_COW) && need_write)
+        {
+            struct Page *page = pte2page(*ptep);
+            if (page == NULL)
+            {
+                return -E_INVAL;
+            }
+            if (page_ref(page) > 1)
+            {
+                struct Page *npage = alloc_page();
+                if (npage == NULL)
+                {
+                    return -E_NO_MEM;
+                }
+                memcpy(page2kva(npage), page2kva(page), PGSIZE);
+                perm &= ~PTE_COW;
+                perm |= PTE_W;
+                return page_insert(mm->pgdir, npage, la, perm);
+            }
+            // 只有一个引用，直接去掉 COW 标记即可
+            *ptep = (*ptep | PTE_W) & ~PTE_COW;
+            tlb_invalidate(mm->pgdir, la);
+            return 0;
+        }
+        return -E_INVAL;
+    }
+
+    struct Page *npage = alloc_page();
+    if (npage == NULL)
+    {
+        return -E_NO_MEM;
+    }
+    memset(page2kva(npage), 0, PGSIZE);
+    return page_insert(mm->pgdir, npage, la, perm);
+}
+
 // mm_create -  alloc a mm_struct & initialize it.
 struct mm_struct *
 mm_create(void)
@@ -218,7 +294,8 @@ int dup_mmap(struct mm_struct *to, struct mm_struct *from)
 
         insert_vma_struct(to, nvma);
 
-        bool share = 0;
+        /* lab5: fork 默认共享用户页，依赖 COW 减少复制 */
+        bool share = 1;
         if (copy_range(to->pgdir, from->pgdir, vma->vm_start, vma->vm_end, share) != 0)
         {
             return -E_NO_MEM;
