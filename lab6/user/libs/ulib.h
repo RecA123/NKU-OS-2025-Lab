@@ -33,6 +33,6 @@ int getpid(void);
 void print_pgdir(void);
 unsigned int gettime_msec(void);
 void lab6_setpriority(uint32_t priority);
+void lab6_set_runtime(uint32_t runtime);
 
 #endif /* !__USER_LIBS_ULIB_H__ */
-

@@ -7,6 +7,17 @@
 
 #define MAX_TIME_SLICE 5
 
+// LAB6 Challenge 2: scheduler policy identifiers
+#define SCHED_RR 0
+#define SCHED_STRIDE 1
+#define SCHED_FIFO 2
+#define SCHED_SJF 3
+#define SCHED_PRIO_RR 4
+
+#ifndef SCHED_POLICY
+#define SCHED_POLICY SCHED_STRIDE
+#endif
+
 struct proc_struct;
 
 struct run_queue;

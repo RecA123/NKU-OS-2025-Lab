@@ -114,6 +114,7 @@ alloc_proc(void)
         skew_heap_init(&(proc->lab6_run_pool));
         proc->lab6_stride = 0;
         proc->lab6_priority = 1;
+        proc->lab6_expected_runtime = MAX_TIME_SLICE;
     }
     return proc;
 }
@@ -985,4 +986,14 @@ void lab6_set_priority(uint32_t priority)
         current->lab6_priority = 1;
     else
         current->lab6_priority = priority;
+}
+
+void lab6_set_expected_runtime(uint32_t runtime)
+{
+    cprintf("set expected runtime to %u\n", runtime);
+    if (runtime == 0)
+    {
+        runtime = MAX_TIME_SLICE;
+    }
+    current->lab6_expected_runtime = runtime;
 }

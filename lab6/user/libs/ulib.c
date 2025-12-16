@@ -56,3 +56,9 @@ lab6_setpriority(uint32_t priority)
 {
     sys_lab6_set_priority(priority);
 }
+
+void
+lab6_set_runtime(uint32_t runtime)
+{
+    sys_lab6_set_runtime(runtime);
+}

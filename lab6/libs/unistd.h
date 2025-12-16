@@ -21,6 +21,7 @@
 #define SYS_putc 30
 #define SYS_pgdir 31
 /*only for lab6*/
+#define SYS_lab6_set_runtime 254
 #define SYS_lab6_set_priority 255
 
 /* SYS_fork flags */

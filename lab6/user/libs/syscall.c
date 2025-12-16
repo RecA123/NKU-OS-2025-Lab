@@ -86,3 +86,9 @@ sys_lab6_set_priority(uint64_t priority)
 {
     syscall(SYS_lab6_set_priority, priority);
 }
+
+void
+sys_lab6_set_runtime(uint64_t runtime)
+{
+    syscall(SYS_lab6_set_runtime, runtime);
+}

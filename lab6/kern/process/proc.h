@@ -65,6 +65,7 @@ struct proc_struct
     skew_heap_entry_t lab6_run_pool;        // FOR LAB6 ONLY: the entry in the run pool
     uint32_t lab6_stride;                   // FOR LAB6 ONLY: the current stride of the process
     uint32_t lab6_priority;                 // FOR LAB6 ONLY: the priority of process, set by lab6_set_priority(uint32_t)
+    uint32_t lab6_expected_runtime;         // FOR LAB6 CH2: expected runtime hint (ms or ticks)
 };
 
 #define PF_EXITING 0x00000001 // getting shutdown
@@ -87,6 +88,8 @@ void cpu_idle(void) __attribute__((noreturn));
 
 // FOR LAB6, set the process's priority (bigger value will get more CPU time)
 void lab6_set_priority(uint32_t priority);
+// FOR LAB6 Challenge 2, set expected runtime hint for SJF-like schedulers
+void lab6_set_expected_runtime(uint32_t runtime);
 
 struct proc_struct *find_proc(int pid);
 int do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf);

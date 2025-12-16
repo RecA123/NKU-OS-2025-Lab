@@ -12,6 +12,6 @@ int sys_pgdir(void);
 int sys_gettime(void);
 /* FOR LAB6 ONLY */
 void sys_lab6_set_priority(uint64_t priority);
+void sys_lab6_set_runtime(uint64_t runtime);
 
 #endif /* !__USER_LIBS_SYSCALL_H__ */
-

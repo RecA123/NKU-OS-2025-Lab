@@ -72,6 +72,11 @@ static int sys_lab6_set_priority(uint64_t arg[]){
     lab6_set_priority(priority);
     return 0;
 }
+static int sys_lab6_set_runtime(uint64_t arg[]){
+    uint64_t runtime = (uint64_t)arg[0];
+    lab6_set_expected_runtime(runtime);
+    return 0;
+}
 static int (*syscalls[])(uint64_t arg[]) = {
     [SYS_exit]              sys_exit,
     [SYS_fork]              sys_fork,
@@ -84,6 +89,7 @@ static int (*syscalls[])(uint64_t arg[]) = {
     [SYS_pgdir]             sys_pgdir,
     [SYS_gettime]           sys_gettime,
     [SYS_lab6_set_priority]  sys_lab6_set_priority,
+    [SYS_lab6_set_runtime]   sys_lab6_set_runtime,
 };
 
 #define NUM_SYSCALLS        ((sizeof(syscalls)) / (sizeof(syscalls[0])))
@@ -108,4 +114,3 @@ syscall(void) {
     panic("undefined syscall %d, pid = %d, name = %s.\n",
             num, current->pid, current->name);
 }
-

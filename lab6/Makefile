@@ -19,11 +19,38 @@ ifndef SPIKE
 SPIKE := spike
 endif
 
+# scheduler selection (Challenge 2)
+SCHED ?= stride
+
+ifeq ($(SCHED),stride)
+DEFS += -DSCHED_POLICY=SCHED_STRIDE
+else ifeq ($(SCHED),rr)
+DEFS += -DSCHED_POLICY=SCHED_RR
+else ifeq ($(SCHED),fifo)
+DEFS += -DSCHED_POLICY=SCHED_FIFO
+else ifeq ($(SCHED),sjf)
+DEFS += -DSCHED_POLICY=SCHED_SJF
+else ifeq ($(SCHED),prio_rr)
+DEFS += -DSCHED_POLICY=SCHED_PRIO_RR
+else
+$(error Unknown scheduler SCHED=$(SCHED))
+endif
+
 # eliminate default suffix rules
 .SUFFIXES: .c .S .h
 
 # delete target files if there is an error (or make is interrupted)
 .DELETE_ON_ERROR:
+
+# early path/layout definitions
+OBJDIR	:= obj
+BINDIR	:= bin
+USER_PREFIX	:= __user_
+RUN_PREFIX	:= _binary_$(OBJDIR)_$(USER_PREFIX)
+
+ifneq ($(TEST),)
+DEFS += -DTEST=$(TEST) -DTESTSTART=$(RUN_PREFIX)$(TEST)_out_start -DTESTSIZE=$(RUN_PREFIX)$(TEST)_out_size
+endif
 
 # define compiler and flags
 
@@ -56,9 +83,6 @@ SH		:= sh
 TR		:= tr
 TOUCH	:= touch -c
 
-OBJDIR	:= obj
-BINDIR	:= bin
-
 ALLOBJS	:=
 ALLDEPS	:=
 TARGETS	:=
@@ -66,8 +90,6 @@ TARGETS	:=
 include tools/function.mk
 
 listf_cc = $(call listf,$(1),$(CTYPE))
-
-USER_PREFIX	:= __user_
 
 # for cc
 add_files_cc = $(call add_files,$(1),$(CC),$(CFLAGS) $(3),$(2),$(4))
@@ -239,7 +261,6 @@ gdb:
 spike: $(UCOREIMG)
 	$(V)$(SPIKE) $(UCOREIMG)
 
-RUN_PREFIX	:= _binary_$(OBJDIR)_$(USER_PREFIX)
 MAKEOPTS	:= --quiet --no-print-directory
 
 run-%: build-%
