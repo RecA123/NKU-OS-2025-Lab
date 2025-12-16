@@ -42,6 +42,11 @@ gdb_in="$(make_print GRADE_GDB_IN)"
 
 ## qemu & qemuopts
 qemu="$(make_print qemu)"
+# ensure we always use the local QEMU 4.1.1 build
+custom_qemu="/home/liangjingming/work/qemu-4.1.1/build/riscv64-softmmu/qemu-system-riscv64"
+if [ -x "$custom_qemu" ]; then
+    qemu="$custom_qemu"
+fi
 
 qemu_out="$(make_print GRADE_QEMU_OUT)"
 
@@ -148,6 +153,7 @@ run_qemu() {
         brkaddr=`$grep " $brkfun\$" $sym_table | $sed -e's/ .*$//g'`
         brkaddr_phys=`echo $brkaddr | sed "s/^c0/00/g"`
         (
+            echo "set architecture riscv:rv64"
             echo "target remote localhost:$gdbport"
             echo "break *0x$brkaddr"
             if [ "$brkaddr" != "$brkaddr_phys" ]; then

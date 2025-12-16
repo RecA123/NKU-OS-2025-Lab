@@ -19,12 +19,14 @@
 
 #define TICK_NUM 100
 
+static size_t tick_prints = 0;
+static int pgfault_report_left = 5;
+
 static void print_ticks()
 {
     cprintf("%d ticks\n", TICK_NUM);
 #ifdef DEBUG_GRADE
     cprintf("End of Test.\n");
-    panic("EOT: kernel seems ok.");
 #endif
 }
 
@@ -122,15 +124,21 @@ void interrupt_handler(struct trapframe *tf)
         // directly.
         // clear_csr(sip, SIP_STIP);
 
-        /* LAB3 :填写你在lab3中实现的代码 */
-        /*(1)设置下次时钟中断- clock_set_next_event()
-         *(2)计数器（ticks）加一
-         *(3)当计数器加到100的时候，我们会输出一个`100ticks`表示我们触发了100次时钟中断，同时打印次数（num）加一
-         * (4)判断打印次数，当打印次数为10时，调用<sbi.h>中的关机函数关机
-         */
-
-        // lab6: YOUR CODE  (update LAB3 steps)
-        //  在时钟中断时调用调度器的 sched_class_proc_tick 函数
+        clock_set_next_event();
+        ticks++;
+        if (ticks % TICK_NUM == 0)
+        {
+            print_ticks();
+            tick_prints++;
+            if (tick_prints >= 10)
+            {
+                sbi_shutdown();
+            }
+        }
+        if (current != NULL)
+        {
+            sched_class_proc_tick(current);
+        }
 
         break;
     case IRQ_H_TIMER:
@@ -160,6 +168,7 @@ void kernel_execve_ret(struct trapframe *tf, uintptr_t kstacktop);
 void exception_handler(struct trapframe *tf)
 {
     int ret;
+    bool in_kernel = trap_in_kernel(tf);
     switch (tf->cause)
     {
     case CAUSE_MISALIGNED_FETCH:
@@ -203,13 +212,55 @@ void exception_handler(struct trapframe *tf)
         cprintf("Environment call from M-mode\n");
         break;
     case CAUSE_FETCH_PAGE_FAULT:
-        cprintf("Instruction page fault\n");
+        if (pgfault_report_left-- > 0)
+        {
+            cprintf("Instruction page fault: pid %d epc=0x%lx badva=0x%lx in_kernel=%d\n", current ? current->pid : -1, tf->epc, tf->tval, in_kernel);
+        }
+        else
+        {
+            cprintf("Instruction page fault\n");
+        }
+        print_trapframe(tf);
+        panic("Instruction page fault");
         break;
     case CAUSE_LOAD_PAGE_FAULT:
-        cprintf("Load page fault\n");
+        if (pgfault_report_left-- > 0)
+        {
+            cprintf("Load page fault: pid %d epc=0x%lx badva=0x%lx in_kernel=%d\n", current ? current->pid : -1, tf->epc, tf->tval, in_kernel);
+        }
+        else
+        {
+            cprintf("Load page fault\n");
+        }
+        if (!in_kernel && current != NULL)
+        {
+            ret = do_pgfault(current->mm, 0, tf->tval);
+            if (ret != 0)
+            {
+                cprintf("pgfault failed: %e\n", ret);
+                panic("Unhandled load pgfault");
+            }
+        }
         break;
     case CAUSE_STORE_PAGE_FAULT:
-        cprintf("Store/AMO page fault\n");
+        if (pgfault_report_left-- > 0)
+        {
+            cprintf("Store/AMO page fault: pid %d epc=0x%lx badva=0x%lx in_kernel=%d\n", current ? current->pid : -1, tf->epc, tf->tval, in_kernel);
+        }
+        else
+        {
+            cprintf("Store/AMO page fault\n");
+        }
+        if (!in_kernel && current != NULL)
+        {
+            ret = do_pgfault(current->mm, PTE_W, tf->tval);
+            if (ret != 0)
+            {
+                cprintf("pgfault failed: %e\n", ret);
+                print_trapframe(tf);
+                panic("Unhandled store pgfault");
+            }
+        }
         break;
     default:
         print_trapframe(tf);
@@ -238,6 +289,7 @@ static inline void trap_dispatch(struct trapframe *tf)
  * */
 void trap(struct trapframe *tf)
 {
+    set_csr(sstatus, SSTATUS_SUM);
     // dispatch based on what type of trap occurred
     //    cputs("some trap");
     if (current == NULL)
