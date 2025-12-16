@@ -107,7 +107,7 @@ alloc_proc(void)
         proc->wait_state = 0;
         proc->cptr = proc->yptr = proc->optr = NULL;
 
-        // LAB6:2312632 初始化LAB6调度相关字段 (update LAB5 steps)
+        // LAB6:2313825 初始化LAB6调度相关字段 (update LAB5 steps)
         proc->rq = NULL;
         list_init(&(proc->run_link));
         proc->time_slice = 0;

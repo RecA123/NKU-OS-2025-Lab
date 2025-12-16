@@ -8,7 +8,7 @@
 #define USE_SKEW_HEAP 1
 
 /* You should define the BigStride constant here*/
-/* LAB6 CHALLENGE 1:学号 设定Stride算法的基准跨度 */
+/* LAB6 CHALLENGE 1:2312331 设定Stride算法的基准跨度 */
 #define BIG_STRIDE (0x7fffffff)
 
 /* The compare function for two skew_heap_node_t's and the
@@ -41,7 +41,7 @@ proc_stride_comp_f(void *a, void *b)
 static void
 stride_init(struct run_queue *rq)
 {
-     /* LAB6 CHALLENGE 1:学号 初始化Stride运行队列 */
+     /* LAB6 CHALLENGE 1:2312331 初始化Stride运行队列 */
      list_init(&(rq->run_list));
      rq->lab6_run_pool = NULL;
      rq->proc_num = 0;
@@ -63,7 +63,7 @@ stride_init(struct run_queue *rq)
 static void
 stride_enqueue(struct run_queue *rq, struct proc_struct *proc)
 {
-     /* LAB6 CHALLENGE 1:学号 将进程插入Stride堆 */
+     /* LAB6 CHALLENGE 1:2312331 将进程插入Stride堆 */
      assert(proc->rq == NULL);
      if (proc->lab6_priority == 0)
      {
@@ -89,7 +89,7 @@ stride_enqueue(struct run_queue *rq, struct proc_struct *proc)
 static void
 stride_dequeue(struct run_queue *rq, struct proc_struct *proc)
 {
-     /* LAB6 CHALLENGE 1:学号 将进程从Stride堆移除 */
+     /* LAB6 CHALLENGE 1:2312331 将进程从Stride堆移除 */
      assert(proc->rq == rq);
      rq->lab6_run_pool = skew_heap_remove(rq->lab6_run_pool,
                                           &(proc->lab6_run_pool),
@@ -115,7 +115,7 @@ stride_dequeue(struct run_queue *rq, struct proc_struct *proc)
 static struct proc_struct *
 stride_pick_next(struct run_queue *rq)
 {
-     /* LAB6 CHALLENGE 1:学号 选择最小stride的进程 */
+     /* LAB6 CHALLENGE 1:2312331 选择最小stride的进程 */
      if (rq->lab6_run_pool == NULL)
      {
           return NULL;
@@ -142,7 +142,7 @@ stride_pick_next(struct run_queue *rq)
 static void
 stride_proc_tick(struct run_queue *rq, struct proc_struct *proc)
 {
-     /* LAB6 CHALLENGE 1:学号 维护时间片并触发调度 */
+     /* LAB6 CHALLENGE 1:2312331 维护时间片并触发调度 */
      if (proc->time_slice > 0)
      {
           proc->time_slice--;

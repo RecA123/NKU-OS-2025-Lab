@@ -3,7 +3,7 @@
 ## 1. 实验目标
 
 - 在 uCore 的调度框架中替换默认 RR 调度器，实现 Stride Scheduling。
-- 补全 `default_sched_stride.c` 中的 `RR_xxx` 五个函数（`stride_init/enqueue/dequeue/pick_next/proc_tick`），并用学号 `2312632` 标注注释。
+- 补全 `default_sched_stride.c` 中的 `RR_xxx` 五个函数（`stride_init/enqueue/dequeue/pick_next/proc_tick`），并用学号 `2312331` 标注注释。
 - 修改 `sched_init()` 选择 Stride 调度器，更新 `tools/grade.sh` 以匹配新的日志输出。
 - 运行 `make grade` / `make qemu` 验证调度行为，观察 `priority` 用户程序的执行结果。
 
@@ -11,7 +11,7 @@
 
 | 文件 | 关键修改 |
 |------|----------|
-| `kern/schedule/default_sched_stride.c` | 定义 `BIG_STRIDE`、用 skew heap 维护 `lab6_run_pool`，在 `enqueue/dequeue` 中更新堆与 `proc_num`，`pick_next` 取最小 stride 并累加 `BIG_STRIDE / priority`，`proc_tick` 维护时间片。所有 `LAB6` 注释替换为学号 `2312632`。 |
+| `kern/schedule/default_sched_stride.c` | 定义 `BIG_STRIDE`、用 skew heap 维护 `lab6_run_pool`，在 `enqueue/dequeue` 中更新堆与 `proc_num`，`pick_next` 取最小 stride 并累加 `BIG_STRIDE / priority`，`proc_tick` 维护时间片。所有 `LAB6` 注释替换为学号 `2312331`。 |
 | `kern/schedule/sched.c` | 在 `sched_init()` 中把 `sched_class` 切换为 `&stride_sched_class`，打印 `sched class: stride_scheduler`。 |
 | `tools/grade.sh` | 将 `priority` 测试的关键字符串修改为 `sched class: stride_scheduler`，确保评分脚本与新日志匹配。 |
 | （可选）`kern/process/proc.c`，`proc.h` 等 | 先前实验已初始化 `lab6_stride` 等字段；本次未额外更改。 |
