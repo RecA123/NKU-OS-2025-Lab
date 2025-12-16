@@ -13,6 +13,24 @@ static struct sched_class *sched_class;
 
 static struct run_queue *rq;
 
+static struct sched_class *
+select_sched_class(void)
+{
+#if SCHED_POLICY == SCHED_RR
+    return &default_sched_class;
+#elif SCHED_POLICY == SCHED_STRIDE
+    return &stride_sched_class;
+#elif SCHED_POLICY == SCHED_FIFO
+    return &fifo_sched_class;
+#elif SCHED_POLICY == SCHED_SJF
+    return &sjf_sched_class;
+#elif SCHED_POLICY == SCHED_PRIO_RR
+    return &prio_rr_sched_class;
+#else
+#error "Unsupported SCHED_POLICY"
+#endif
+}
+
 static inline void
 sched_class_enqueue(struct proc_struct *proc)
 {
@@ -52,7 +70,7 @@ void sched_init(void)
 {
     list_init(&timer_list);
 
-    sched_class = &default_sched_class;
+    sched_class = select_sched_class();
 
     rq = &__rq;
     rq->max_time_slice = MAX_TIME_SLICE;
